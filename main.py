@@ -1,10 +1,8 @@
 import argparse
 import csv
-import numpy as np
-import os
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from Data_preprocessing import data_cleanup
+from data.preprocessing import data_analysis
+
 
 def load_data(path_data):
     with open(path_data) as fp:
@@ -36,7 +34,16 @@ def load_data(path_data):
 
 def main(input_dir, output_file):
     data_frame = load_data(input_dir)
-    # data_cleanup.missing_data_percentage(data_frame)
+    data_analysis.missing_data_percentage(data_frame)
+    data_frame = data_analysis.convert_to_nan(data_frame)
+    data_frame = data_analysis.uppercase(data_frame)
+    data_analysis.convert_to_numeric(data_frame)
+    # data_analysis.distribution_histogram(data_frame)
+    # data_analysis.box_plot_distribution(data_frame)
+    data_analysis.pair_plot(data_frame, 3,7)
+
+
+
     column_title_row = ['index', ' ' * 2 + 'Acuracy', ' ' * 2 + 'Class', ' ' * 2 + 'Md5', ' ' * 2 + 'blur']
     with open(output_file, 'w', encoding="utf-8") as csvfile:
           testwriter = csv.writer(csvfile, delimiter=',', lineterminator="\n")
