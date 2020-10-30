@@ -8,59 +8,43 @@ missing_value_formats = ["None", "?", "NA", "n/a", "na", "--"]
 # size_df = len(df.index)
 
 
-def missing_data_percentage(df):
-    features_nan = []
-    df = df.replace(to_replace=missing_value_formats, value=np.nan)
-    print(df)
-    for column in df.columns:
-        df[column] = df[column].str.upper()
-        if df[column].isnull().sum() > 0:
-            features_nan.append(column)
-    for feature in features_nan:
-        # print(feature, ":", df[feature].isnull().sum()/(size_df+1))
-        print("{}:{}% missing values".format(feature, np.round(100*df[feature].isnull().mean(), 4)))
-
-
-def uppercase(df):
-    for column in df.columns:
-        df[column] = df[column].str.upper()
-    return df
+# Uppercase all categorical and convert all numbers to numeric
+def clean(df, feature):
+    df[feature] = df[feature].str.upper()
+    df[feature] = pd.to_numeric(df[feature], errors='ignore')
+    if df[feature].nunique() == 1 or feature == 'cylinder number':
+        del df[feature]
 
 
 def convert_to_nan(df):
-    df = df.replace(to_replace=missing_value_formats, value=np.nan)
-    return df
+    return df.replace(to_replace=missing_value_formats, value=np.nan)
 
 
-def categorical_values(df):
-    categorical_features = [column for column in df.columns if df[column].dtype == 'O']
-    return categorical_features
-
-
-def numeric_values(df):
-    numeric_features = [column for column in df.columns if df[column].dtype != 'O']
-    return numeric_features
-
-
-def convert_to_numeric(df):
-    for column in df.columns:
-        df[column] = pd.to_numeric(df[column], errors='ignore')
+def categorical_numeric_split(df):
+    categorical_feature = []
+    numeric_feature = []
+    for feature in df.columns:
+        if df[feature].dtype == 'O':
+            categorical_feature.append(feature)
+        else:
+            numeric_feature.append(feature)
+    return categorical_feature, numeric_feature
 
 
 # find discrete values
-def discrete_values(df):
-    return [feature for feature in numeric_values(df) if len(df[feature].unique()) < 10]
+def discrete_values(df, numeric):
+    return [feature for feature in numeric if len(df[feature].unique()) < 10]
 
 
 # find continuous values
-def continuous_values(df):
-    return [feature for feature in numeric_values(df) if feature not in discrete_values(df)]
+def continuous_values(df, numeric):
+    return [feature for feature in numeric if len(df[feature].unique()) > 10]
 
 
 # analyse the continuous values by creating histograms to understand the distribution
-def distribution_histogram(df):
+def distribution_histogram(df, continuous):
     size_df = len(df.index)
-    for feature in continuous_values(df):
+    for feature in continuous:
         df[feature].hist(bins=10)
         plt.xlabel(feature)
         plt.ylabel("Count")
@@ -69,8 +53,8 @@ def distribution_histogram(df):
 
 
 # outliers
-def box_plot_distribution(df):
-    for feature in continuous_values(df):
+def box_plot_distribution(df, continuous):
+    for feature in continuous:
         if 0 in df[feature].unique():
             pass
         else:
@@ -82,8 +66,8 @@ def box_plot_distribution(df):
 
 
 # pair-plot for numeric values
-def pair_plot(df, m, n):
-    sns.pairplot(df, hue='band type', kind='scatter', vars=continuous_values(df)[m: n],
-                                                          plot_kws=dict(alpha=0.5),
-                                                          diag_kws=dict(alpha=0.5))
+def pair_plot(df, continuous, m, n):
+    sns.pairplot(df, hue='band type', kind='scatter', vars=continuous[m: n],
+                 plot_kws=dict(alpha=0.5),
+                 diag_kws=dict(alpha=0.5))
     plt.show()

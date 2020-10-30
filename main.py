@@ -2,6 +2,17 @@ import argparse
 import csv
 import pandas as pd
 from data.preprocessing import data_analysis
+from data.preprocessing import missing_data_imputation
+from sklearn.model_selection import train_test_split
+from sklearn import tree
+from sklearn import svm
+from sklearn import ensemble
+from sklearn import metrics
+from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import precision_recall_curve
+from matplotlib import pyplot
+from sklearn.metrics import f1_score
 
 
 def load_data(path_data):
@@ -23,36 +34,60 @@ def load_data(path_data):
                   'anode space ratio', 'chrome content', 'band type']
 
     pd.pandas.set_option('display.max_columns', None)
-    # df.head()
-
     return df
-
-
-
-
 
 
 def main(input_dir, output_file):
     data_frame = load_data(input_dir)
-    data_analysis.missing_data_percentage(data_frame)
     data_frame = data_analysis.convert_to_nan(data_frame)
-    data_frame = data_analysis.uppercase(data_frame)
-    data_analysis.convert_to_numeric(data_frame)
-    # data_analysis.distribution_histogram(data_frame)
-    # data_analysis.box_plot_distribution(data_frame)
-    data_analysis.pair_plot(data_frame, 3,7)
+    for feature in data_frame.columns:
+        data_analysis.clean(data_frame, feature)
+    missing_data_imputation.missing_data_percentage(data_frame)
+    categorical_feature, numeric_feature = data_analysis.categorical_numeric_split(data_frame)
+    continuous_feature = data_analysis.continuous_values(data_frame, numeric_feature)
+    # data_analysis.distribution_histogram(data_frame, continuous_feature)
+    # data_analysis.box_plot_distribution(data_frame, continuous_feature)
+    # data_analysis.pair_plot(data_frame, continuous_feature, 3, 7)
+    for feature in numeric_feature:
+        if data_frame[feature].isnull().sum() > 0:
+            missing_data_imputation.replace_numerical_missing_values(data_frame, feature)
+    for feature in categorical_feature:
+        missing_data_imputation.replace_categorical_missing_values(data_frame, feature)
 
-
-
-    column_title_row = ['index', ' ' * 2 + 'Acuracy', ' ' * 2 + 'Class', ' ' * 2 + 'Md5', ' ' * 2 + 'blur']
+    data_frame = missing_data_imputation.one_hot_encoding(data_frame, categorical_feature)
+    # missing_data_imputation.label_encoding(data_frame, categorical_feature)
+    df_y = data_frame.iloc[:, data_frame.columns.get_loc('band type')]
+    df_x = data_frame.drop('band type', axis=1)
+    x_train, x_test, y_train, y_test = train_test_split(df_x, df_y, stratify=df_y, test_size=0.20)
+    # clf = tree.DecisionTreeClassifier()
+    # clf = svm.SVC()
+    clf = ensemble.RandomForestClassifier()
+    clf = clf.fit(x_train, y_train)
+    y_pred = clf.predict(x_test)
+    y_probs = clf.predict_proba(x_test)
+    fpr, tpr, thresholds = roc_curve(y_test, y_probs[:, 1])
+    auc = roc_auc_score(y_test, y_probs[:, 1])
+    f1 = f1_score(y_test, y_pred)
+    print("Accuracy:", metrics.accuracy_score(y_test, y_pred))
+    print('AUC: %.3f' % auc)
+    print('f1=%.3f' % f1)
+    pyplot.plot(fpr, tpr, marker='.', label='Band Type')
+    pyplot.xlabel('False Positive Rate')
+    pyplot.ylabel('True Positive Rate')
+    pyplot.legend()
+    pyplot.show()
+    precision, recall, thresholds = precision_recall_curve(y_test, y_probs[:, 1])
+    pyplot.plot(recall, precision, linestyle='--', label='Type Band')
+    pyplot.xlabel('Recall')
+    pyplot.ylabel('Precision')
+    pyplot.legend()
+    pyplot.show()
+    column_title_row = ['Classifier model', ' ' * 2 + 'Accuracy', ' ' * 2 + 'AUC', ' ' * 2 + 'F1',
+                        ' ' * 2 + 'Precision', ' ' * 2 + 'Recall', ' ' * 2 + 'False Positive Rate',
+                        ' ' * 2 + 'True Positive Rate']
     with open(output_file, 'w', encoding="utf-8") as csvfile:
-          testwriter = csv.writer(csvfile, delimiter=',', lineterminator="\n")
-          testwriter.writerow(column_title_row)
-    #     u = len(sd_img_path_list)
-    #     for i in range(len(sd_img_path_list)):
-    #         blur = calculating_blur(sd_img_path_list[i])
-    #         testwriter.writerow([i + 1, sd_img_path_list[i], class_list[i], images_md5[i], blur])
-
+        testwriter = csv.writer(csvfile, delimiter=',', lineterminator="\n")
+        testwriter.writerow(column_title_row)
 
 
 if __name__ == "__main__":
