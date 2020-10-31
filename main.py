@@ -4,15 +4,24 @@ import pandas as pd
 from data.preprocessing import data_analysis
 from data.preprocessing import missing_data_imputation
 from sklearn.model_selection import train_test_split
-from sklearn import tree
-from sklearn import svm
-from sklearn import ensemble
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn import metrics
+from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import precision_recall_curve
 from matplotlib import pyplot
 from sklearn.metrics import f1_score
+
+classifier_model = {"Random Forest": RandomForestClassifier(),
+                    "Decision Tree": DecisionTreeClassifier(),
+                    "Nearest Neighbors": KNeighborsClassifier(),
+                    "AdaBoost": AdaBoostClassifier(),
+                    "Naive Bayes": GaussianNB()
+                    }
 
 
 def load_data(path_data):
@@ -37,6 +46,34 @@ def load_data(path_data):
     return df
 
 
+def classification(model, x_train, y_train, x_test, y_test):
+    clf = classifier_model.get(model)
+    clf.fit(x_train, y_train)
+    y_pred = clf.predict(x_test)
+    y_probs = clf.predict_proba(x_test)
+    accuracy = metrics.accuracy_score(y_test, y_pred)
+    auc_l = roc_auc_score(y_test, y_probs[:, 1])
+    f1 = f1_score(y_test, y_pred)
+    fpr, tpr, thresholds = roc_curve(y_test, y_probs[:, 1])
+    # print("Accuracy:", metrics.accuracy_score(y_test, y_pred))
+    # print('AUC: %.3f' % auc_l)
+    # print('f1=%.3f' % f1)
+    pyplot.plot(fpr, tpr, marker='.', label='ROC band type ' + str(model))
+    pyplot.xlabel('False Positive Rate')
+    pyplot.ylabel('True Positive Rate')
+    pyplot.legend()
+    pyplot.savefig('ROC_' + str(model) + '.jpg')
+    pyplot.show()
+    precision, recall, thresholds = precision_recall_curve(y_test, y_probs[:, 1])
+    pyplot.plot(recall, precision, linestyle='--', label='AUC band type' + str(model))
+    pyplot.xlabel('Recall')
+    pyplot.ylabel('Precision')
+    pyplot.legend()
+    pyplot.savefig('AUC_' + str(model) + '.jpg')
+    pyplot.show()
+    return accuracy, auc_l, f1
+
+
 def main(input_dir, output_file):
     data_frame = load_data(input_dir)
     data_frame = data_analysis.convert_to_nan(data_frame)
@@ -59,35 +96,18 @@ def main(input_dir, output_file):
     df_y = data_frame.iloc[:, data_frame.columns.get_loc('band type')]
     df_x = data_frame.drop('band type', axis=1)
     x_train, x_test, y_train, y_test = train_test_split(df_x, df_y, stratify=df_y, test_size=0.20)
-    # clf = tree.DecisionTreeClassifier()
-    # clf = svm.SVC()
-    clf = ensemble.RandomForestClassifier()
-    clf = clf.fit(x_train, y_train)
-    y_pred = clf.predict(x_test)
-    y_probs = clf.predict_proba(x_test)
-    fpr, tpr, thresholds = roc_curve(y_test, y_probs[:, 1])
-    auc = roc_auc_score(y_test, y_probs[:, 1])
-    f1 = f1_score(y_test, y_pred)
-    print("Accuracy:", metrics.accuracy_score(y_test, y_pred))
-    print('AUC: %.3f' % auc)
-    print('f1=%.3f' % f1)
-    pyplot.plot(fpr, tpr, marker='.', label='Band Type')
-    pyplot.xlabel('False Positive Rate')
-    pyplot.ylabel('True Positive Rate')
-    pyplot.legend()
-    pyplot.show()
-    precision, recall, thresholds = precision_recall_curve(y_test, y_probs[:, 1])
-    pyplot.plot(recall, precision, linestyle='--', label='Type Band')
-    pyplot.xlabel('Recall')
-    pyplot.ylabel('Precision')
-    pyplot.legend()
-    pyplot.show()
-    column_title_row = ['Classifier model', ' ' * 2 + 'Accuracy', ' ' * 2 + 'AUC', ' ' * 2 + 'F1',
-                        ' ' * 2 + 'Precision', ' ' * 2 + 'Recall', ' ' * 2 + 'False Positive Rate',
-                        ' ' * 2 + 'True Positive Rate']
+    # for model in classifier_model:
+    #     accuracy, auc_l, f1, precision, recall, fpr, tpr = classification(model, x_test, y_test)
+
+
+
+    column_title_row = ['Classifier model', ' ' * 2 + 'Accuracy', ' ' * 2 + 'AUC', ' ' * 2 + 'F1']
     with open(output_file, 'w', encoding="utf-8") as csvfile:
         testwriter = csv.writer(csvfile, delimiter=',', lineterminator="\n")
         testwriter.writerow(column_title_row)
+        for model in classifier_model:
+            accuracy, auc_l, f1 = classification(model, x_train, y_train, x_test, y_test)
+            testwriter.writerow([model, accuracy, auc_l, f1])
 
 
 if __name__ == "__main__":
